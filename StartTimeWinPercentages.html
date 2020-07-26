@@ -30,6 +30,13 @@
         padding: 50px 20px;
         height: 100%;
     }
+
+    .choice {
+        display: flex;
+        margin-top: 1%;
+        justify-content: space-between;
+        max-width: 950px;
+    }
 </style>
 
 <body>
@@ -204,11 +211,336 @@
     </div>
 
     <div id="generate" class="tabcontent">
-        In progress
+        <div class="choice">
+            <label for="Team">Choose a team:</label>
+            <select id="teams" onchange="updateTeam()">
+                <option value="999">Select one</option>
+                <option value="24">Anaheim Ducks</option>
+                <option value="53">Arizona Coyotes</option>
+                <option value="6">Boston Bruins</option>
+                <option value="7">Buffalo Sabres</option>
+                <option value="20">Calgary Flames</option>
+                <option value="12">Carolina Hurricanes</option>
+                <option value="16">Chicago Blackhawks</option>
+                <option value="21">Colorado Avalanche</option>
+                <option value="29">Columbus Blue Jackets</option>
+                <option value="25">Dallas Stars</option>
+                <option value="17">Detroit Red Wings</option>
+                <option value="22">Edmonton Oilers</option>
+                <option value="13">Florida Panthers</option>
+                <option value="26">Los Angeles Kings</option>
+                <option value="30">Minnesota Wild</option>
+                <option value="8">Montréal Canadiens</option>
+                <option value="18">Nashville Predators</option>
+                <option value="1">New Jersey Devils</option>
+                <option value="2">New York Islanders</option>
+                <option value="3">New York Rangers</option>
+                <option value="9">Ottawa Senators</option>
+                <option value="4">Philadelphia Flyers</option>
+                <option value="5">Pittsburgh Penguins</option>
+                <option value="28">San Jose Sharks</option>
+                <option value="19">St. Louis Blues</option>
+                <option value="14">Tampa Bay Lightning</option>
+                <option value="10">Toronto Maple Leafs</option>
+                <option value="23">Vancouver Canucks</option>
+                <option value="54">Vegas Golden Knights</option>
+                <option value="15">Washington Capitals</option>
+                <option value="52">Winnipeg Jets</option>
+            </select>
+            OR
+            <button onclick="getLeagueTotal()">Get League Total</button>
+            (Note: This basically just outputs the points each game that the other tab displays)
+        </div>
+
+        <p id="p1"></p>
+        <p id="p2"></p>
+        <p id="p3"></p>
+
     </div>
 
     <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
     <script type="text/javascript">
+        // Javascript used by the generate tab
+
+        // Fill timezone offset for each team
+        offsets = {};
+        offsets["1"] = 5; //NJD
+        offsets["2"] = 5; //NYI
+        offsets["3"] = 5; //NYR
+        offsets["4"] = 5; //PHI
+        offsets["5"] = 5; //PIT
+        offsets["6"] = 5; //BOS
+        offsets["7"] = 5; //BUF
+        offsets["8"] = 5; //MON
+        offsets["9"] = 5; //OTT
+        offsets["10"] = 5; //TOR
+        offsets["12"] = 5; //CAR
+        offsets["13"] = 5; //FLA
+        offsets["14"] = 5; //TBL
+        offsets["15"] = 5; //WSH
+        offsets["16"] = 6; // CHI
+        offsets["17"] = 5; //DET
+        offsets["18"] = 6; //NSH
+        offsets["19"] = 6; //STL
+        offsets["20"] = 7; //CGY
+        offsets["21"] = 7; //COL
+        offsets["22"] = 7; //EDM
+        offsets["23"] = 8; //VAN
+        offsets["24"] = 8; //ANA
+        offsets["25"] = 6; //DAL
+        offsets["26"] = 8; //LAK
+        offsets["28"] = 8; //SJS
+        offsets["29"] = 8; //CBJ
+        offsets["30"] = 6; //MIN
+        offsets["52"] = 6; //WPG
+        offsets["53"] = 8; //ARI
+        offsets["54"] = 8; //VGK
+
+        async function getData(url) {
+            const response = await fetch(url);
+            return response.json();
+        }
+
+        async function getSchedule(teamId) {
+            var result = [];
+            const url = `https://statsapi.web.nhl.com/api/v1/schedule?teamId=${teamId}&startDate=2019-10-02&endDate=2020-03-11`;
+            return await getData(url);
+        }
+
+        async function getGameLineScore(id) {
+            const url = `https://statsapi.web.nhl.com/api/v1/game/${id}/linescore`;
+            return await getData(url);
+        }
+
+        async function getGameBoxScore(id) {
+            const url = `https://statsapi.web.nhl.com/api/v1/game/${id}/boxscore`;
+            return await getData(url);
+        }
+
+        function getTeamPointsFromGame(lineScoreJson, teamId) {
+            var teamScore = 0;
+            var otherScore = 0;
+            if (lineScoreJson['teams']['home']['team']['id'] == teamId) {
+                teamScore = lineScoreJson['teams']['home']['goals'];
+                otherScore = lineScoreJson['teams']['away']['goals'];
+            }
+            else {
+                otherScore = lineScoreJson['teams']['home']['goals'];
+                teamScore = lineScoreJson['teams']['away']['goals'];
+            }
+            if (teamScore > otherScore) {
+                return 2;
+            }
+            // OT or shootout loss
+            else if (lineScoreJson['currentPeriodOrdinal'] != '3rd') {
+                return 1;
+            }
+            else {
+                return 0;
+            }
+        }
+
+        // Input is a date string
+        function isDateDaylightSavingTime(dateStr) {
+            var date = new Date(dateStr);
+            var month = date.getUTCMonth() + 1;
+            // If the month is Jan, Feb, Dec, it is not DST for sure
+            if (month == 1 || month == 2 || month == 12) {
+                return false;
+            }
+            // If month is April to Oct, it is DST for sure
+            if (month >= 4 && month <= 10) {
+                return true;
+            }
+            var year = date.getUTCFullYear();
+            var day = date.getUTCDate() + 1;
+            var hours = date.getUTCHours() + 1;
+            switch (year) {
+                case 2020:
+                    // 2020 : Mar 8, 2020 - Nov 1, 2020
+                    if (month == 3) {
+                        if (day <= 7) {
+                            return false;
+                        }
+                        if (day >= 9) {
+                            return true;
+                        }
+                        if (hours >= 10) {
+                            return true;
+                        }
+                        else {
+                            return false;
+                        }
+                    }
+                    else {
+                        if (day >= 2) {
+                            return false;
+                        }
+                        if (hours <= 10) {
+                            return true;
+                        }
+                        else {
+                            return false;
+                        }
+                    }
+                    break;
+                case 2019:
+                    // 2019 : Mar 10, 2019 - Nov 3, 2019
+                    if (month == 3) {
+                        if (day <= 9) {
+                            return false;
+                        }
+                        if (day >= 11) {
+                            return true;
+                        }
+                        if (hours >= 10) {
+                            return true;
+                        }
+                        else {
+                            return false;
+                        }
+                    }
+                    else {
+                        if (day >= 4) {
+                            return false;
+                        }
+                        if (day <= 2) {
+                            return true;
+                        }
+                        if (hours <= 10) {
+                            return true;
+                        }
+                        else {
+                            return false;
+                        }
+                    }
+                    break;
+                default:
+                    return true;
+            }
+        }
+
+        // Returns HH:MM based on teamId local time (24 hours)
+        function getStartTime(teamId, dateStr) {
+            offset = offsets[teamId.toString()];
+            if (isDateDaylightSavingTime(dateStr)) {
+                offset = offset - 1;
+            }
+            var date = new Date(dateStr);
+            date.setMinutes(date.getMinutes() - (offset * 60));
+            var minutesString = date.getMinutes() == 0 ? "00" : date.getMinutes();
+            return date.getUTCHours() + ":" + minutesString;
+        }
+
+        // Converts an object of start time to array of points earned to object of start time and points percentage of those points
+        function getPointsPercentages(startTimeToPointsPerGame) {
+            var startTimeToPointsPercentage = {};
+            for (var startTime in startTimeToPointsPerGame) {
+                var totalPoints = startTimeToPointsPerGame[startTime].reduce((a, b) => a + b, 0);
+                var percentage = totalPoints / (startTimeToPointsPerGame[startTime].length * 2);
+                startTimeToPointsPercentage[startTime] = percentage;
+            }
+            return startTimeToPointsPercentage;
+        }
+
+        function sortByStartTime(startTimeToPoints) {
+            var startTimes = Object.keys(startTimeToPoints);
+            startTimes.sort(function (a, b) {
+                hourA = parseInt(a.split(":")[0]);
+                hourB = parseInt(b.split(":")[0]);
+                minutesA = parseInt(a.split(":")[1]);
+                minutesB = parseInt(b.split(":")[1]);
+                if (hourA == hourB) {
+                    return minutesA - minutesB;
+                }
+                else {
+                    return hourA - hourB;
+                }
+            });
+            result = {};
+            startTimes.forEach(startTime => result[startTime] = startTimeToPoints[startTime]);
+            return result;
+        }
+
+        function print(startTimeToPoints) {
+            var result = ``;
+            for (const [key, value] of Object.entries(startTimeToPoints)) {
+                var percentage = value.reduce((a, b) => a + b, 0) / (value.length*2);
+                result += key + `: ` + value.toString() + ` (` + percentage.toFixed(3) + ` win percentage)<p>`;
+            }
+            return result;
+        }
+
+        async function updateTeam() {
+            teamId = document.getElementById("teams").value;
+            if (teamId == 999) {
+                return;
+            }
+            var schedule = await (getSchedule(teamId));
+            document.getElementById("p1").innerHTML = `Calculating per team...`;
+            document.getElementById("p2").innerHTML = ``;
+            document.getElementById("p3").innerHTML = ``;
+
+            var points = 0;
+            var startTimeToPoints = {};
+
+            for (var i = 0; i < schedule['dates'].length; i++) {
+                var pk = schedule['dates'][i]['games'][0]['gamePk'];
+                var pointsFromGame = getTeamPointsFromGame(await getGameLineScore(pk), teamId);
+                points += pointsFromGame;
+                var convertedStartTime = getStartTime(teamId, schedule['dates'][i]['games'][0]['gameDate']);
+                if (convertedStartTime in startTimeToPoints) {
+                    startTimeToPoints[convertedStartTime].push(pointsFromGame);
+                }
+                else {
+                    startTimeToPoints[convertedStartTime] = [pointsFromGame];
+                }
+            }
+            startTimeToPoints = sortByStartTime(startTimeToPoints);
+            document.getElementById("p1").innerHTML = JSON.stringify(startTimeToPoints);
+            document.getElementById("p2").innerHTML = "Total points: " + points;
+            document.getElementById("p3").innerHTML = print(startTimeToPoints);
+        }
+
+        async function getLeagueTotal() {
+            document.getElementById("p2").innerHTML = ``;
+            document.getElementById("p3").innerHTML = ``;
+            var teamsSelect = document.getElementById("teams");
+            var teams = [];
+            for (var i = 1; i < teamsSelect.length; i++) {
+                teams.push(teamsSelect[i].value);
+            }
+            var totalGames = 0;
+            var totalPoints = 0;
+            var startTimeToPoints = {};
+
+            for (var team = 0; team < teams.length; team++) {
+                document.getElementById("p1").innerHTML = `Calculating league total for team ` + (team + 1) + ` out of ` + teams.length;
+                var teamId = teams[team];
+                var schedule = await (getSchedule(teamId));
+                for (var j = 0; j < schedule['dates'].length; j++) {
+                    totalGames++;
+                    var pk = schedule['dates'][j]['games'][0]['gamePk'];
+                    var pointsFromGame = getTeamPointsFromGame(await getGameLineScore(pk), teamId);
+                    totalPoints += pointsFromGame;
+                    var convertedStartTime = getStartTime(teamId, schedule['dates'][j]['games'][0]['gameDate']);
+                    if (convertedStartTime in startTimeToPoints) {
+                        startTimeToPoints[convertedStartTime].push(pointsFromGame);
+                    }
+                    else {
+                        startTimeToPoints[convertedStartTime] = [pointsFromGame];
+                    }
+                }
+            }
+            startTimeToPoints = sortByStartTime(startTimeToPoints);
+            document.getElementById("p1").innerHTML = JSON.stringify(startTimeToPoints);
+            document.getElementById("p2").innerHTML = `Total points earned: ` + totalPoints + `. Total games played: ` + totalGames + `. Average win percentage of ` + (totalPoints / (totalGames * 2)).toFixed(3);
+            document.getElementById("p3").innerHTML = print(startTimeToPoints);
+        }
+
+
+        // Javascript used by the charts tab
+        
         google.charts.load("current", { packages: ['corechart'] });
 
         document.getElementById("defaultOpen").click();
@@ -294,7 +626,7 @@
                 graph.style.display = "block";
                 drawChart(pointsPerGame[button.value], button.value);
                 jsonText.style.display = "block";
-                jsonText.innerHTML = JSON.stringify(pointsPerGame[button.value]);
+                jsonText.innerHTML = print(pointsPerGame[button.value]);
             } else {
                 graph.style.display = "none";
                 jsonText.style.display = "none";
@@ -316,4 +648,5 @@
         }
     </script>
 </body>
+
 </html>
