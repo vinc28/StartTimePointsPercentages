@@ -44,7 +44,7 @@
     <button class="tablink" onclick="openPage('generate', this)">Generate points per game JSON</button>
 
     <div id="charts" class="tabcontent">
-        <h1>Winning percentage by team local start time</h1>
+        <h1>Points percentage by team local start time</h1>
 
         <div id="container">
             <div class="team">
@@ -464,10 +464,17 @@
 
         function print(startTimeToPoints) {
             var result = ``;
+            var totalPoints = 0;
+            var totalPossiblePoints = 0;
             for (const [key, value] of Object.entries(startTimeToPoints)) {
-                var percentage = value.reduce((a, b) => a + b, 0) / (value.length*2);
-                result += key + `: ` + value.toString() + ` (` + percentage.toFixed(3) + ` win percentage)<p>`;
+                var points = value.reduce((a, b) => a + b, 0);
+                var possiblePoints = value.length*2;
+                var percentage = points / possiblePoints;
+                totalPoints += points;
+                totalPossiblePoints += possiblePoints;
+                result += key + `:  ${value.toString()}  ( + ${percentage.toFixed(3)}  points percentage)<p>`;
             }
+            result += `Total points percentage: ${(totalPoints/totalPossiblePoints).toFixed(3)}`
             return result;
         }
 
@@ -534,13 +541,12 @@
             }
             startTimeToPoints = sortByStartTime(startTimeToPoints);
             document.getElementById("p1").innerHTML = JSON.stringify(startTimeToPoints);
-            document.getElementById("p2").innerHTML = `Total points earned: ` + totalPoints + `. Total games played: ` + totalGames + `. Average win percentage of ` + (totalPoints / (totalGames * 2)).toFixed(3);
+            document.getElementById("p2").innerHTML = `Total points earned: ` + totalPoints + `. Total games played: ` + totalGames + `. Average points percentage of ` + (totalPoints / (totalGames * 2)).toFixed(3);
             document.getElementById("p3").innerHTML = print(startTimeToPoints);
         }
 
 
         // Javascript used by the charts tab
-        
         google.charts.load("current", { packages: ['corechart'] });
 
         document.getElementById("defaultOpen").click();
@@ -595,16 +601,16 @@
             var startTimes = Object.keys(startTimeToPointsPercentage);
             var dataTable = new google.visualization.DataTable();
             dataTable.addColumn('string', 'Start Time');
-            dataTable.addColumn('number', 'Winning Percentage');
+            dataTable.addColumn('number', 'Points Percentage');
             // A column for custom tooltip content
             dataTable.addColumn({ 'type': 'string', 'role': 'tooltip', 'p': { 'html': true } })
             startTimes.forEach(startTime => {
                 var totalPoints = startTimeToPointsPerGame[startTime].reduce(sum);
-                var tooltip = "<font size=4> Winning percentage: " + startTimeToPointsPercentage[startTime].toFixed(3) + " <br> Points earned/possible points: " + totalPoints + "/" + startTimeToPointsPerGame[startTime].length * 2 + "</font>";
+                var tooltip = "<font size=4> Points percentage: " + startTimeToPointsPercentage[startTime].toFixed(3) + " <br> Points earned/possible points: " + totalPoints + "/" + startTimeToPointsPerGame[startTime].length * 2 + "</font>";
                 dataTable.addRow([startTime, startTimeToPointsPercentage[startTime], tooltip])
             });
             var options = {
-                title: "Winning Percentage vs Start Time",
+                title: "Points Percentage vs Start Time",
                 width: 1200,
                 height: 600,
                 bar: { groupWidth: "95%" },
